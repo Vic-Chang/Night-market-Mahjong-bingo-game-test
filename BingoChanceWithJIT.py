@@ -18,8 +18,8 @@ def enable_print():
 
 # 各類參數
 size = 1  # 方陣大小
-matrix = []  # 二違矩陣
-# matrix = np.zeros([size, size], dtype=int)  # 二維矩陣
+# matrix = []  # 二違矩陣
+matrix = np.zeros([size, size], dtype=int)  # 二維矩陣
 grab_quant = 0  # 每次抓取數量
 ting_mechanism = True  # 是否有聽牌機制
 ting_grab_quant = 0  # 若有聽牌機制,可額外抓取數量
@@ -43,13 +43,14 @@ def get_new_chess(quantity):
             matrix[_hPoint][_vPoint] = 1
 
 
-@jit(nb.void(nb.int32[:, :], nb.int32))
-def get_new_chess_jit(matrix, quantity):
+@jit(nb.void(nb.int32[:, :], nb.int32, nb.int32))
+def get_new_chess_jit(matrix, quantity, size):
     for i in range(quantity):
         _hPoint = random.randint(0, size - 1)
         _vPoint = random.randint(0, size - 1)
 
         while matrix[(_hPoint, _vPoint)] == 1:
+            print(matrix)
             _hPoint = random.randint(0, size - 1)
             _vPoint = random.randint(0, size - 1)
         else:
@@ -263,10 +264,12 @@ def show_matrix():
 def start_process():
     # 開始運行
     print('==========開始==========')
-    reset_matrix(size)
+    # reset_matrix(size)
+    reset_matrix_jit(matrix)
     show_matrix()
     print('隨機抓取 %s 張牌' % grab_quant)
-    get_new_chess(grab_quant)
+    # get_new_chess(grab_quant)
+    get_new_chess_jit(matrix, grab_quant, size)
     show_matrix()
 
     have_line = check_line()
@@ -278,7 +281,8 @@ def start_process():
         ting = second_chance()
         print('是否已聽牌: ' + str(ting))
         if ting:
-            get_new_chess(ting_grab_quant)
+            # get_new_chess(ting_grab_quant)
+            get_new_chess_jit(matrix, grab_quant, size)
             global ting_count
             ting_count += 1
             print('再次抓取 %s 張牌' % ting_grab_quant)
@@ -343,6 +347,7 @@ if __name__ == '__main__':
         loop_limit = int(input('請輸入執行次數'))
         print('執行次數為 %s 次' % loop_limit)
 
+    matrix = np.zeros([size, size], dtype=int)  # 二維矩陣
     runtime = time.time()
     # 跑測試
     if not quick_setting:
