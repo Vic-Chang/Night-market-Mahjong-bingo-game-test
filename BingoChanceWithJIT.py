@@ -5,20 +5,8 @@ import numpy as np
 from numba import jit
 import numba as nb
 
-
-# Disable print function
-def block_print():
-    sys.stdout = open(os.devnull, 'w')
-
-
-# Restore print function
-def enable_print():
-    sys.stdout = sys.__stdout__
-
-
 # 各類參數
 size = 1  # 方陣大小
-# matrix = []  # 二違矩陣
 matrix = np.zeros([size, size], dtype=int)  # 二維矩陣
 grab_quant = 0  # 每次抓取數量
 ting_mechanism = True  # 是否有聽牌機制
@@ -30,19 +18,6 @@ ting_count = 0  # 聽牌次數
 ting_success_count = 0  # 聽牌後成功連線次數
 
 
-# 抓棋子
-# parameter:quantity 抓棋子的數量
-def get_new_chess(quantity):
-    for i in range(quantity):
-        _hPoint = random.randint(0, size - 1)
-        _vPoint = random.randint(0, size - 1)
-        while matrix[_hPoint][_vPoint] == 1:
-            _hPoint = random.randint(0, size - 1)
-            _vPoint = random.randint(0, size - 1)
-        else:
-            matrix[_hPoint][_vPoint] = 1
-
-
 @jit(nb.void(nb.int32[:, :], nb.int32, nb.int32))
 def get_new_chess_jit(matrix, quantity, size):
     for i in range(quantity):
@@ -50,123 +25,42 @@ def get_new_chess_jit(matrix, quantity, size):
         _vPoint = random.randint(0, size - 1)
 
         while matrix[(_hPoint, _vPoint)] == 1:
-            print(matrix)
             _hPoint = random.randint(0, size - 1)
             _vPoint = random.randint(0, size - 1)
         else:
             matrix[(_hPoint, _vPoint)] = 1
 
 
-# 檢查是否有連線
-def check_line():
-    _isLine = False
-
-    # 檢查橫線
-    for i in range(size):
-        _isLine = True
-        for j in range(size):
-            if matrix[i][j] == 0:
-                _isLine = False
-                break
-        if _isLine:  # 若有成線則回傳
-            return True
-
-    # 檢查直線
-    for i in range(size):
-        _isLine = True
-        for j in range(size):
-            if matrix[j][i] == 0:
-                _isLine = False
-                break
-        if _isLine:  # 若有成線則回傳
-            return True
-
-    # 檢查斜線( 正斜線 \ )
-    _isLine = True
-    for i in range(size):
-        if matrix[i][i] == 0:
-            _isLine = False
-            break
-    if _isLine:  # 若有成線則回傳
-        return True
-
-    # 反斜線 /
-    _isLine = True
-    for i in zip(range(size), reversed(range(size))):
-        if matrix[i[0]][i[1]] == 0:
-            _isLine = False
-            break
-    if _isLine:  # 若有成線則回傳
-        return True
-
-    return _isLine
-
-
 @jit(nb.boolean(nb.int32[:, :], nb.int32))
 # 檢查是否有連線
 def check_line_jit(jit_matrix, size):
-    _isLine = False
-    # 檢查橫線
-    for i in range(size):
-        _isLine = True
-        for j in range(size):
-            if jit_matrix[i][j] == 0:
-                _isLine = False
-                break
-        if _isLine:  # 若有成線則回傳
-            print('橫線bingo')
-            print('第 ')
-            print(i)
-            print('行')
-            return True
-
     # 檢查直線
-    for i in range(size):
-        _isLine = True
-        for j in range(size):
-            if jit_matrix[j][i] == 0:
-                _isLine = False
-                break
-        if _isLine:  # 若有成線則回傳
-            print('直線bingo')
-            print('第 ')
-            print(i)
-            print('行')
-            return True
+    if np.any(np.sum(jit_matrix, axis=1) == size):
+        return True
+
+    # 檢查恆線
+    if np.any(np.sum(jit_matrix, axis=0) == size):
+        return True
 
     # 檢查斜線( 正斜線 \ )
     _isLine = True
     for i in range(size):
-        if jit_matrix[i][i] == 0:
+        if jit_matrix[(i, i)] == 0:
             _isLine = False
             break
     if _isLine:  # 若有成線則回傳
-        print('斜線bingo')
-        print('第 ')
-        print(i)
-        print('行')
         return True
 
     # 反斜線 /
     _isLine = True
     for i in range(size):
-        if jit_matrix[i][size - i - 1] == 0:  # Numba不支援Reversed
+        if jit_matrix[(i, size - i - 1)] == 0:  # Numba不支援Reversed
             _isLine = False
             break
     if _isLine:  # 若有成線則回傳
-        print('反橫線bingo')
-        print('第 ')
-        print(i)
-        print('行')
         return True
 
     return _isLine
-
-
-# 重新reset陣列
-def reset_matrix(size):
-    global matrix
-    matrix = [[0 for i in range(size)] for j in range(size)]
 
 
 # 重新reset陣列
@@ -176,119 +70,60 @@ def reset_matrix_jit(jitmatrix):
         jitmatrix[index] = 0
 
 
+@jit(nb.boolean(nb.int32[:, :], nb.int32))
 # 檢查是否聽牌(差一號連線)
-def second_chance():
-    # 檢查橫線
-    for i in range(size):
-        _total = 0
-        for j in range(size):
-            _total += matrix[i][j]
-        if _total == size - 1:
-            return True
-
+def second_chance_jit(jit_matrix, size):
     # 檢查直線
-    for i in range(size):
-        _total = 0
-        for j in range(size):
-            _total += matrix[j][i]
-        if _total == size - 1:
-            return True
+    if np.any(np.sum(jit_matrix, axis=1) == size - 1):
+        return True
 
+    # 檢查恆線
+    if np.any(np.sum(jit_matrix, axis=0) == size - 1):
+        return True
+
+    _isLine = False
     # 檢查斜線( 正斜線 \ )
     _total = 0
     for i in range(size):
-        _total += matrix[i][i]
+        _total += jit_matrix[(i, i)]
     if _total == size - 1:
         return True
 
     # 檢查斜線( 反斜線 \ )
     _total = 0
-    for i in zip(range(size), reversed(range(size))):
-        _total += matrix[i[0]][i[1]]
+    for i in range(size):
+        if jit_matrix[(i, size - i - 1)] != 0:  # Numba不支援Reversed
+            _total += jit_matrix[(i, size - i - 1)]
     if _total == size - 1:
         return True
 
     return False
-
-
-# @jit(nb.boolean(nb.int32[:, :],nb.int32))
-@jit()
-# 檢查是否聽牌(差一號連線)
-def second_chance_jit(jit_matrix):
-    # 檢查橫線
-    for i in range(size):
-        _total = 0
-        for j in range(size):
-            _total += jit_matrix[i][j]
-        if _total == size - 1:
-            print('橫線聽牌')
-            print(i)
-            return True
-
-    # 檢查直線
-    for i in range(size):
-        _total = 0
-        for j in range(size):
-            _total += jit_matrix[j][i]
-        if _total == size - 1:
-            print('直線聽牌')
-            print(i)
-            return True
-
-    # 檢查斜線( 正斜線 \ )
-    _total = 0
-    for i in range(size):
-        _total += jit_matrix[i][i]
-    if _total == size - 1:
-        print('協線聽牌')
-        return True
-
-    # 檢查斜線( 反斜線 \ )
-    _total = 0
-    for i in range(size):
-        if jit_matrix[i][size - i - 1] == 0:  # Numba不支援Reversed
-            _total += jit_matrix[i][i]
-    if _total == size - 1:
-        print('反協線聽牌')
-        return True
-
-    return False
-
-
-# show出目前桌面
-def show_matrix():
-    print(matrix)
 
 
 # 開始運行流程, 回傳是否連線
 def start_process():
     # 開始運行
-    print('==========開始==========')
-    # reset_matrix(size)
-    reset_matrix_jit(matrix)
-    show_matrix()
-    print('隨機抓取 %s 張牌' % grab_quant)
-    # get_new_chess(grab_quant)
-    get_new_chess_jit(matrix, grab_quant, size)
-    show_matrix()
 
-    have_line = check_line()
-    print('是否已連線: ' + str(have_line))
+    # 重設棋盤
+    reset_matrix_jit(matrix)
+
+    # 抓取棋子
+    get_new_chess_jit(matrix, grab_quant, size)
+
+    # 是否有成線
+    have_line = check_line_jit(matrix, size)
+
     if have_line:
         return True
 
+    # 如果有聽牌機制，且不成線則開啟聽牌檢查
     if ting_mechanism and not have_line:
-        ting = second_chance()
-        print('是否已聽牌: ' + str(ting))
+        ting = second_chance_jit(matrix, size)
         if ting:
-            # get_new_chess(ting_grab_quant)
-            get_new_chess_jit(matrix, grab_quant, size)
+            get_new_chess_jit(matrix, ting_grab_quant, size)
             global ting_count
             ting_count += 1
-            print('再次抓取 %s 張牌' % ting_grab_quant)
-            have_line = check_line()
-            print('是否已連線: ' + str(have_line))
-            show_matrix()
+            have_line = check_line_jit(matrix, size)
             if have_line:
                 global ting_success_count
                 ting_success_count += 1
@@ -319,11 +154,11 @@ if __name__ == '__main__':
     # 快速設定成夜市參數
     quick_setting = input('啟用夜市快速設定? (y/n):').lower() in ['yes', 'y']
     if quick_setting:
-        size = size = 6
+        size = 6
         grab_quant = 15
         ting_mechanism = True
         ting_grab_quant = 5
-        loop_limit = 10
+        loop_limit = 20
     else:
         # 設定矩陣大小
         size = int(input('請輸入方形矩陣大小(夜市一般為6):'))
@@ -347,17 +182,13 @@ if __name__ == '__main__':
         loop_limit = int(input('請輸入執行次數'))
         print('執行次數為 %s 次' % loop_limit)
 
-    matrix = np.zeros([size, size], dtype=int)  # 二維矩陣
+    matrix = np.zeros([size, size], dtype=int)  # 初始化二維矩陣
     runtime = time.time()
     # 跑測試
-    if not quick_setting:
-        block_print()
     for i in range(loop_limit):
         total_count += 1
         if start_process():
             success_count += 1
-    if not quick_setting:
-        enable_print()
 
     # 統計
     analysis()
